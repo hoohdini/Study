@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createSession, ensureAdminSeeded, sessionCookie, verifyPassword } from "@/lib/auth";
-import { resolveCookieSecure } from "@/lib/https";
+import { resolveCookieSecure, toPublicUrl } from "@/lib/https";
 import { getEnv } from "@/lib/env";
 
 const bodySchema = z.object({
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   const limit = checkRateLimit(`login:${ip}`, 8, 10 * 60 * 1000);
   if (!limit.allowed) {
     if (wantsHtml(request)) {
-      return NextResponse.redirect(new URL("/admin/login?error=rate", request.url), { status: 303 });
+      return NextResponse.redirect(toPublicUrl(request, "/admin/login?error=rate"), { status: 303 });
     }
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ZodError) {
       if (wantsHtml(request)) {
-        return NextResponse.redirect(new URL("/admin/login?error=env", request.url), { status: 303 });
+        return NextResponse.redirect(toPublicUrl(request, "/admin/login?error=env"), { status: 303 });
       }
       return NextResponse.json(
         {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (wantsHtml(request)) {
-      return NextResponse.redirect(new URL("/admin/login?error=env", request.url), { status: 303 });
+      return NextResponse.redirect(toPublicUrl(request, "/admin/login?error=env"), { status: 303 });
     }
     return NextResponse.json({ error: "Server misconfigured", code: "ENV_INVALID" }, { status: 500 });
   }
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       const parsed = bodySchema.safeParse(json);
       if (!parsed.success) {
         if (wantsHtml(request)) {
-          return NextResponse.redirect(new URL("/admin/login?error=invalid", request.url), { status: 303 });
+          return NextResponse.redirect(toPublicUrl(request, "/admin/login?error=invalid"), { status: 303 });
         }
         return NextResponse.json({ error: "Invalid input" }, { status: 400 });
       }
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       const parsed = bodySchema.safeParse({ email, password });
       if (!parsed.success) {
         if (wantsHtml(request)) {
-          return NextResponse.redirect(new URL("/admin/login?error=invalid", request.url), { status: 303 });
+          return NextResponse.redirect(toPublicUrl(request, "/admin/login?error=invalid"), { status: 303 });
         }
         return NextResponse.json({ error: "Invalid input" }, { status: 400 });
       }
@@ -84,14 +84,14 @@ export async function POST(request: NextRequest) {
     const admin = await verifyPassword(email, password);
     if (!admin) {
       if (wantsHtml(request)) {
-        return NextResponse.redirect(new URL("/admin/login?error=auth", request.url), { status: 303 });
+        return NextResponse.redirect(toPublicUrl(request, "/admin/login?error=auth"), { status: 303 });
       }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = await createSession(admin.email);
     if (wantsHtml(request)) {
-      const response = NextResponse.redirect(new URL("/admin", request.url), { status: 303 });
+      const response = NextResponse.redirect(toPublicUrl(request, "/admin"), { status: 303 });
       response.cookies.set(sessionCookie(token, resolveCookieSecure(request)));
       return response;
     }
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (wantsHtml(request)) {
-      return NextResponse.redirect(new URL("/admin/login?error=server", request.url), { status: 303 });
+      return NextResponse.redirect(toPublicUrl(request, "/admin/login?error=server"), { status: 303 });
     }
     return NextResponse.json(
       { error: "Server error", code: "LOGIN_FAILED" },

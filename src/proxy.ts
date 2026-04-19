@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { resolveCookieSecure } from "@/lib/https";
+import { resolveCookieSecure, toPublicUrl } from "@/lib/https";
 
 const encoder = new TextEncoder();
 
@@ -18,14 +18,14 @@ export async function proxy(request: NextRequest) {
   const secret = process.env.AUTH_SECRET;
 
   if (!token || !secret) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    return NextResponse.redirect(toPublicUrl(request, "/admin/login"));
   }
 
   try {
     await jwtVerify(token, encoder.encode(secret));
     return NextResponse.next();
   } catch {
-    const response = NextResponse.redirect(new URL("/admin/login", request.url));
+    const response = NextResponse.redirect(toPublicUrl(request, "/admin/login"));
     response.cookies.set({
       name: "study_archive_session",
       value: "",
