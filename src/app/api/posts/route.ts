@@ -31,7 +31,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const json = await request.json();
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body", code: "JSON_PARSE" }, { status: 400 });
+  }
+
   const parsed = postSchema.safeParse(json);
 
   if (!parsed.success) {
@@ -39,32 +45,42 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
-  const slug = await buildUniqueSlug(data.title);
 
-  const post = await prisma.$transaction(async (tx) => {
-    const tagRecords = await upsertTags(tx, data.tags);
-    return tx.post.create({
-      data: {
-        title: data.title,
-        slug,
-        summary: data.summary,
-        content: data.content,
-        category: data.category,
-        publishedAt: new Date(),
-        tags: {
-          create: tagRecords.map((tag) => ({ tagId: tag.id })),
+  try {
+    const slug = await buildUniqueSlug(data.title);
+
+    const post = await prisma.$transaction(async (tx) => {
+      const tagRecords = await upsertTags(tx, data.tags);
+      return tx.post.create({
+        data: {
+          title: data.title,
+          slug,
+          summary: data.summary,
+          content: data.content,
+          category: data.category,
+          publishedAt: new Date(),
+          tags: {
+            create: tagRecords.map((tag) => ({ tagId: tag.id })),
+          },
+          attachments: {
+            create: data.attachments.map((attachment) => ({
+              original: attachment.original,
+              storedName: attachment.storedName,
+              mimeType: attachment.mimeType,
+              size: attachment.size,
+            })),
+          },
         },
-        attachments: {
-          create: data.attachments.map((attachment) => ({
-            original: attachment.original,
-            storedName: attachment.storedName,
-            mimeType: attachment.mimeType,
-            size: attachment.size,
-          })),
-        },
-      },
+      });
     });
-  });
 
-  return NextResponse.json(post, { status: 201 });
+    return NextResponse.json(post, { status: 201 });
+  } catch (err) {
+    console.error("[api/posts] POST save failed", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json(
+      { error: "Save failed", code: "POST_SAVE_FAILED", message },
+      { status: 500 },
+    );
+  }
 }

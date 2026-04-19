@@ -10,18 +10,24 @@ async function readErrorMessage(response: Response) {
     const parsed = JSON.parse(text) as {
       error?: string;
       detail?: string;
+      message?: string;
+      code?: string;
       issues?: { path: (string | number)[]; message: string }[];
     };
-    if (parsed.error && parsed.detail) return `${parsed.error} (${parsed.detail})`;
-    if (parsed.error) return parsed.error;
+    const bits: string[] = [];
+    if (parsed.code) bits.push(`[${parsed.code}]`);
+    if (parsed.error && parsed.detail) bits.push(`${parsed.error} (${parsed.detail})`);
+    else if (parsed.error) bits.push(parsed.error);
+    if (parsed.message) bits.push(parsed.message);
     if (parsed.issues?.length) {
-      return parsed.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      bits.push(parsed.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
     }
+    if (bits.length) return bits.join(" ");
   } catch {
     /* not JSON */
   }
-  if (text.trim()) return text.slice(0, 200);
-  return response.statusText || `HTTP ${response.status}`;
+  if (text.trim()) return `${response.status} ${text.slice(0, 200)}`;
+  return `${response.status} ${response.statusText || "Error"}`;
 }
 
 export default function AdminForm() {
@@ -71,63 +77,69 @@ export default function AdminForm() {
     event.preventDefault();
     setMessage("");
     setSaving(true);
+    let navigated = false;
 
-    let response: Response;
     try {
-      response = await fetch("/api/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          title,
-          summary,
-          content,
-          category,
-          tags: tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-          attachments: uploads,
-        }),
-      });
-    } catch {
-      setMessage("게시물 저장 실패: 네트워크 오류(연결 끊김 또는 차단)입니다.");
-      setSaving(false);
-      return;
-    }
+      let response: Response;
+      try {
+        response = await fetch("/api/posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          body: JSON.stringify({
+            title,
+            summary,
+            content,
+            category,
+            tags: tags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+            attachments: uploads,
+          }),
+        });
+      } catch (e) {
+        console.error("[admin] POST /api/posts network error", e);
+        setMessage("게시물 저장 실패: 네트워크 오류(연결 끊김, 차단, 또는 브라우저 확장 프로그램)입니다.");
+        return;
+      }
 
-    if (!response.ok) {
-      setMessage(`게시물 저장 실패: ${await readErrorMessage(response)}`);
-      setSaving(false);
-      return;
-    }
+      if (!response.ok) {
+        const detail = await readErrorMessage(response);
+        console.error("[admin] POST /api/posts failed", response.status, detail);
+        setMessage(`게시물 저장 실패 (HTTP ${response.status}): ${detail}`);
+        return;
+      }
 
-    const ct = response.headers.get("content-type") ?? "";
-    if (!ct.includes("application/json")) {
-      setMessage(
-        `게시물 저장 실패: JSON이 아닌 응답입니다 (${ct || "no content-type"}). API 인증/프록시 설정을 확인해 주세요.`,
-      );
-      setSaving(false);
-      return;
-    }
+      const ct = response.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        console.error("[admin] POST /api/posts unexpected content-type", ct);
+        setMessage(
+          `게시물 저장 실패: JSON이 아닌 응답입니다 (${ct || "no content-type"}). 로그인·프록시·Nginx 설정을 확인하세요.`,
+        );
+        return;
+      }
 
-    let saved: { slug?: string };
-    try {
-      saved = (await response.json()) as { slug?: string };
-    } catch {
-      setMessage("게시물 저장 실패: 응답 본문을 파싱할 수 없습니다.");
-      setSaving(false);
-      return;
-    }
+      let saved: { slug?: string };
+      try {
+        saved = (await response.json()) as { slug?: string };
+      } catch (e) {
+        console.error("[admin] POST /api/posts JSON parse error", e);
+        setMessage("게시물 저장 실패: 응답 본문을 파싱할 수 없습니다.");
+        return;
+      }
 
-    // 폼만 비우면 같은 URL에 빈 화면만 남아 “저장이 안 된 것 같다”로 느껴지기 쉬워,
-    // 전체 네비게이션으로 방금 쓴 글을 바로 보여 줍니다.
-    const slug = saved.slug;
-    if (slug) {
-      window.location.assign(`/archive/${encodeURIComponent(slug)}`);
-      return;
+      navigated = true;
+      const slug = saved.slug;
+      if (slug) {
+        window.location.assign(`/archive/${encodeURIComponent(slug)}`);
+        return;
+      }
+      window.location.assign("/archive");
+    } finally {
+      if (!navigated) setSaving(false);
     }
-    window.location.assign("/archive");
   }
 
   async function logout() {
@@ -145,6 +157,10 @@ export default function AdminForm() {
     window.location.assign("/admin/login");
   }
 
+  const statusTone = /실패|오류|Unauthorized|Invalid|error|failed|HTTP\s[45]/i.test(message)
+    ? "border-red-200 bg-red-50 text-red-900"
+    : "border-emerald-200 bg-emerald-50 text-emerald-900";
+
   return (
     <>
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -153,6 +169,15 @@ export default function AdminForm() {
           로그아웃
         </button>
       </div>
+
+      {(message || saving) && (
+        <div
+          className={`mb-4 rounded-xl border p-3 text-sm ${message ? statusTone : "border-neutral-200 bg-white text-neutral-600"}`}
+          role="status"
+        >
+          {saving && !message ? "저장 요청 중… (잠시만 기다려 주세요)" : message}
+        </div>
+      )}
 
       <form className="space-y-5 rounded-2xl bg-white p-6" onSubmit={(e) => void handleSubmit(e)}>
         <div>
@@ -210,7 +235,6 @@ export default function AdminForm() {
           )}
         </div>
 
-        {message && <p className="text-sm text-neutral-700">{message}</p>}
         <button className="apple-btn apple-btn-primary" type="submit" disabled={saving}>
           {saving ? "저장 중…" : "게시물 저장"}
         </button>
