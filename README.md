@@ -20,6 +20,9 @@
    - `npm install`
 2. 환경 변수 준비
    - `.env.example` 복사 후 `.env` 작성
+   - `npm run dev`로 로컬 접속할 때는 `NODE_ENV=production`을 피하세요.
+     - `BASE_URL`이 `https://`인데 `http://localhost`로 접속하면 쿠키 Secure 설정 때문에 로그인 세션이 저장되지 않을 수 있습니다.
+     - 필요하면 `.env`에 `COOKIE_SECURE=false`를 추가하세요.
 3. Prisma 준비
    - `npx prisma generate`
    - `npx prisma migrate dev --name init`
