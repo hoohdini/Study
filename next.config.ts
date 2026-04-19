@@ -9,7 +9,10 @@ const csp = [
   "font-src 'self' data:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  // Admin login uses a plain HTML form POST. During local/docker setups it's easy to end up on
+  // `http://localhost:3000` while posting to `https://localhost` behind nginx, which violates a
+  // strict `form-action 'self'`. Keep this permissive enough for same-host dev, without opening random domains.
+  "form-action 'self' http://localhost:3000 https://localhost",
 ].join("; ");
 
 const nextConfig: NextConfig = {
