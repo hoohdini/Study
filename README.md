@@ -25,6 +25,7 @@
      - 필요하면 `.env`에 `COOKIE_SECURE=false`를 추가하세요.
    - `npm run dev`는 호스트에서 실행되므로 `DATABASE_URL`의 호스트가 `postgres`처럼 Docker 내부 DNS면 연결이 실패할 수 있습니다.
      - 로컬 개발이면 `localhost:5432` 같은 호스트로 맞추거나, Docker로 DB만 띄운 뒤 포트를 노출해 접속하세요.
+     - 이 repo의 `infra/docker-compose.yml`은 Postgres를 `127.0.0.1:5432`로 호스트에 노출합니다(외부 인터넷에는 안 열림).
 3. Prisma 준비
    - `npx prisma generate`
    - `npx prisma migrate dev --name init`

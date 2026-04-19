@@ -22,6 +22,10 @@ services:
       POSTGRES_DB: study_archive
       POSTGRES_USER: study_user
       POSTGRES_PASSWORD: change_me
+    ports:
+      # Host에서 `npm run dev`로 접속할 때 DB에 붙으려면 호스트 포트가 필요합니다.
+      # 외부에 노출하지 않으려면 127.0.0.1에만 바인딩하세요.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
