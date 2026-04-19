@@ -13,11 +13,20 @@ export default function AdminLoginPage() {
     event.preventDefault();
     setError("");
 
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    let response: Response;
+    try {
+      response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      setError(
+        "로그인 요청 자체가 실패했습니다. (네트워크/HTTPS 인증서/차단 확장프로그램 가능)\n" +
+          "개발자도구 Network에서 POST /api/auth/login 이 보이는지 확인해주세요.",
+      );
+      return;
+    }
 
     if (!response.ok) {
       let message = "로그인에 실패했습니다.";
