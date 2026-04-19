@@ -17,14 +17,28 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get("study_archive_session")?.value;
   const secret = process.env.AUTH_SECRET;
 
-  if (!token || !secret) {
+  if (!secret) {
+    console.warn("[proxy] Missing AUTH_SECRET; redirecting to login", {
+      path: request.nextUrl.pathname,
+    });
+    return NextResponse.redirect(toPublicUrl(request, "/admin/login"));
+  }
+
+  if (!token) {
+    console.warn("[proxy] Missing session cookie; redirecting to login", {
+      path: request.nextUrl.pathname,
+    });
     return NextResponse.redirect(toPublicUrl(request, "/admin/login"));
   }
 
   try {
     await jwtVerify(token, encoder.encode(secret));
     return NextResponse.next();
-  } catch {
+  } catch (error) {
+    console.warn("[proxy] Invalid session token; redirecting to login", {
+      path: request.nextUrl.pathname,
+      message: error instanceof Error ? error.message : "unknown",
+    });
     const response = NextResponse.redirect(toPublicUrl(request, "/admin/login"));
     response.cookies.set({
       name: "study_archive_session",

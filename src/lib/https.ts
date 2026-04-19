@@ -57,6 +57,11 @@ export function resolveCookieSecure(request: NextRequest) {
   if (process.env.COOKIE_SECURE === "false") return false;
 
   if (isHttpsFromRequest(request)) return true;
+  // Nginx 같은 TLS 종단 프록시 뒤에서도, 공개 URL이 HTTPS면 Secure 쿠키를 켭니다.
+  // (특히 `.env`에 `NODE_ENV=development`가 남아 production 강제가 깨지는 경우의 안전망)
+  if (isHttpsFromBaseUrl() && request.headers.get("x-forwarded-proto")?.toLowerCase() === "https") {
+    return true;
+  }
   if (process.env.NODE_ENV === "production" && isHttpsFromBaseUrl()) return true;
 
   return false;

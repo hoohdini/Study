@@ -4,6 +4,10 @@ services:
       context: ..
       dockerfile: Dockerfile
     container_name: study-archive-app
+    environment:
+      # `.env`에 `NODE_ENV=development`가 남아 있으면(`.env.example` 복사 실수),
+      # HTTPS(Nginx) 뒤에서도 Secure 쿠키가 꺼져 로그인 직후 세션이 저장되지 않을 수 있습니다.
+      NODE_ENV: production
     env_file:
       - ../.env
     depends_on:

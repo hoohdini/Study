@@ -23,6 +23,10 @@
    - `npm run dev`로 로컬 접속할 때는 `NODE_ENV=production`을 피하세요.
      - `BASE_URL`이 `https://`인데 `http://localhost`로 접속하면 쿠키 Secure 설정 때문에 로그인 세션이 저장되지 않을 수 있습니다.
      - 필요하면 `.env`에 `COOKIE_SECURE=false`를 추가하세요.
+   - Docker Compose로 앱까지 같이 띄울 때는 `BASE_URL`을 실제로 브라우저가 접속하는 공개 URL로 맞추세요.
+     - 예: Nginx TLS로 `https://localhost`에 접속한다면 `BASE_URL=https://localhost`
+     - `.env`에 `NODE_ENV=development`가 남아 있으면(`.env.example` 복사 실수) HTTPS 뒤에서도 Secure 쿠키가 꺼져 로그인 직후 `/admin`에서 다시 로그인 화면으로 튕길 수 있습니다.
+       - 이 repo의 `infra/docker-compose.yml`은 앱 컨테이너에 `NODE_ENV=production`을 강제합니다.
    - `npm run dev`는 호스트에서 실행되므로 `DATABASE_URL`의 호스트가 `postgres`처럼 Docker 내부 DNS면 연결이 실패할 수 있습니다.
      - 로컬 개발이면 `localhost:5432` 같은 호스트로 맞추거나, Docker로 DB만 띄운 뒤 포트를 노출해 접속하세요.
      - 이 repo의 `infra/docker-compose.yml`은 Postgres를 `127.0.0.1:5432`로 호스트에 노출합니다(외부 인터넷에는 안 열림).
