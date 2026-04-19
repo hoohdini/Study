@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 type UploadInfo = { original: string; storedName: string; mimeType: string; size: number };
 
@@ -26,7 +25,6 @@ async function readErrorMessage(response: Response) {
 }
 
 export default function AdminForm() {
-  const router = useRouter();
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
@@ -112,14 +110,15 @@ export default function AdminForm() {
       return;
     }
 
-    setMessage("게시물이 저장되었습니다.");
+    setMessage("게시물이 저장되었습니다. 아카이브(/archive)에서 확인할 수 있습니다.");
     setTitle("");
     setSummary("");
     setContent("");
     setCategory("SOCIETY");
     setTags("");
     setUploads([]);
-    router.refresh();
+    // `router.refresh()`는 RSC 갱신 과정에서 이 클라이언트 컴포넌트가 리마운트되며
+    // 방금 띄운 성공 메시지까지 초기화되는 경우가 있어 제거합니다.
   }
 
   async function logout() {
