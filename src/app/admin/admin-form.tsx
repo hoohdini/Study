@@ -32,6 +32,7 @@ export default function AdminForm() {
   const [tags, setTags] = useState("");
   const [message, setMessage] = useState("");
   const [uploads, setUploads] = useState<UploadInfo[]>([]);
+  const [saving, setSaving] = useState(false);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -69,6 +70,7 @@ export default function AdminForm() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    setSaving(true);
 
     let response: Response;
     try {
@@ -81,17 +83,22 @@ export default function AdminForm() {
           summary,
           content,
           category,
-          tags: tags.split(",").map((tag) => tag.trim()),
+          tags: tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean),
           attachments: uploads,
         }),
       });
     } catch {
       setMessage("게시물 저장 실패: 네트워크 오류(연결 끊김 또는 차단)입니다.");
+      setSaving(false);
       return;
     }
 
     if (!response.ok) {
       setMessage(`게시물 저장 실패: ${await readErrorMessage(response)}`);
+      setSaving(false);
       return;
     }
 
@@ -100,25 +107,27 @@ export default function AdminForm() {
       setMessage(
         `게시물 저장 실패: JSON이 아닌 응답입니다 (${ct || "no content-type"}). API 인증/프록시 설정을 확인해 주세요.`,
       );
+      setSaving(false);
       return;
     }
 
+    let saved: { slug?: string };
     try {
-      await response.json();
+      saved = (await response.json()) as { slug?: string };
     } catch {
       setMessage("게시물 저장 실패: 응답 본문을 파싱할 수 없습니다.");
+      setSaving(false);
       return;
     }
 
-    setMessage("게시물이 저장되었습니다. 아카이브(/archive)에서 확인할 수 있습니다.");
-    setTitle("");
-    setSummary("");
-    setContent("");
-    setCategory("SOCIETY");
-    setTags("");
-    setUploads([]);
-    // `router.refresh()`는 RSC 갱신 과정에서 이 클라이언트 컴포넌트가 리마운트되며
-    // 방금 띄운 성공 메시지까지 초기화되는 경우가 있어 제거합니다.
+    // 폼만 비우면 같은 URL에 빈 화면만 남아 “저장이 안 된 것 같다”로 느껴지기 쉬워,
+    // 전체 네비게이션으로 방금 쓴 글을 바로 보여 줍니다.
+    const slug = saved.slug;
+    if (slug) {
+      window.location.assign(`/archive/${encodeURIComponent(slug)}`);
+      return;
+    }
+    window.location.assign("/archive");
   }
 
   async function logout() {
@@ -202,8 +211,8 @@ export default function AdminForm() {
         </div>
 
         {message && <p className="text-sm text-neutral-700">{message}</p>}
-        <button className="apple-btn apple-btn-primary" type="submit">
-          게시물 저장
+        <button className="apple-btn apple-btn-primary" type="submit" disabled={saving}>
+          {saving ? "저장 중…" : "게시물 저장"}
         </button>
       </form>
     </>
