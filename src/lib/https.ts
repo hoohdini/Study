@@ -12,6 +12,19 @@ function isHttpsFromRequest(request: NextRequest) {
   return request.nextUrl.protocol === "https:";
 }
 
+function isPrivateOrDockerInternalHost(hostname: string) {
+  if (hostname === "localhost" || hostname.endsWith(".local")) return false;
+
+  if (hostname.startsWith("172.")) return true;
+  if (hostname.startsWith("10.")) return true;
+
+  if (hostname.startsWith("192.168.")) return true;
+
+  if (hostname.startsWith("127.")) return true;
+
+  return false;
+}
+
 export function getPublicOrigin(request: NextRequest) {
   const baseUrl = process.env.BASE_URL;
   if (baseUrl) {
@@ -19,10 +32,14 @@ export function getPublicOrigin(request: NextRequest) {
   }
 
   const forwardedProto = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "");
-  const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host;
+  const forwardedHostHeader = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const forwardedHost =
+    forwardedHostHeader && !isPrivateOrDockerInternalHost(forwardedHostHeader.split(":")[0] ?? forwardedHostHeader)
+      ? forwardedHostHeader
+      : request.headers.get("host") ?? request.nextUrl.host;
 
   const forwardedPort = request.headers.get("x-forwarded-port");
-  const explicitPort = forwardedPort ?? (request.nextUrl.port ? request.nextUrl.port : "");
+  const explicitPort = forwardedPort ?? "";
 
   const hostHasPort = forwardedHost.includes(":");
   const defaultPort = forwardedProto === "https" ? "443" : "80";
