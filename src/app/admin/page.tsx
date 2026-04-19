@@ -5,6 +5,26 @@ import { useRouter } from "next/navigation";
 
 type UploadInfo = { original: string; storedName: string; mimeType: string; size: number };
 
+async function readErrorMessage(response: Response) {
+  const text = await response.text();
+  try {
+    const parsed = JSON.parse(text) as {
+      error?: string;
+      detail?: string;
+      issues?: { path: (string | number)[]; message: string }[];
+    };
+    if (parsed.error && parsed.detail) return `${parsed.error} (${parsed.detail})`;
+    if (parsed.error) return parsed.error;
+    if (parsed.issues?.length) {
+      return parsed.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    }
+  } catch {
+    /* not JSON */
+  }
+  if (text.trim()) return text.slice(0, 200);
+  return response.statusText || `HTTP ${response.status}`;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -21,13 +41,23 @@ export default function AdminPage() {
 
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch("/api/upload", { method: "POST", body: formData });
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
     if (!response.ok) {
-      setMessage("파일 업로드에 실패했습니다.");
+      setMessage(`파일 업로드 실패: ${await readErrorMessage(response)}`);
       return;
     }
 
-    const data = (await response.json()) as UploadInfo;
+    let data: UploadInfo;
+    try {
+      data = (await response.json()) as UploadInfo;
+    } catch {
+      setMessage("파일 업로드 응답을 해석하지 못했습니다. 다시 로그인한 뒤 시도해 보세요.");
+      return;
+    }
     setUploads((prev) => [...prev, data]);
     setMessage(`업로드 완료: ${data.original}`);
   }
@@ -39,6 +69,7 @@ export default function AdminPage() {
     const response = await fetch("/api/posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
         title,
         summary,
@@ -50,7 +81,7 @@ export default function AdminPage() {
     });
 
     if (!response.ok) {
-      setMessage("게시물 저장에 실패했습니다.");
+      setMessage(`게시물 저장 실패: ${await readErrorMessage(response)}`);
       return;
     }
 
