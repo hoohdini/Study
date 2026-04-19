@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 
+// Next.js(App Router)는 프로덕션에서도 RSC/하이드레이션용 인라인 스크립트를 주입합니다.
+// `script-src 'self'`만 두면 브라우저가 위반으로 막습니다. nonce 기반 CSP는 추후 강화 여지.
 const csp = [
   "default-src 'self'",
   "img-src 'self' data: blob:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
   "connect-src 'self'",
   "font-src 'self' data:",
   "frame-ancestors 'none'",
