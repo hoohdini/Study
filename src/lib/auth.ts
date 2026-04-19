@@ -7,19 +7,6 @@ import { prisma } from "@/lib/prisma";
 const TOKEN_NAME = "study_archive_session";
 const encoder = new TextEncoder();
 
-function isHttpsRequest() {
-  const baseUrl = process.env.BASE_URL;
-  if (baseUrl?.toLowerCase().startsWith("https://")) return true;
-
-  return false;
-}
-
-function shouldUseSecureCookies() {
-  if (process.env.COOKIE_SECURE === "true") return true;
-  if (process.env.COOKIE_SECURE === "false") return false;
-  return process.env.NODE_ENV === "production" && isHttpsRequest();
-}
-
 export async function ensureAdminSeeded() {
   const env = getEnv();
   const existing = await prisma.adminUser.findUnique({ where: { email: env.ADMIN_EMAIL } });
@@ -71,24 +58,24 @@ export async function getSession() {
   return verifySession(token);
 }
 
-export function sessionCookie(token: string) {
+export function sessionCookie(token: string, secure: boolean) {
   return {
     name: TOKEN_NAME,
     value: token,
     httpOnly: true,
-    secure: shouldUseSecureCookies(),
+    secure,
     sameSite: "lax" as const,
     path: "/",
     maxAge: 60 * 60 * 24,
   };
 }
 
-export function clearSessionCookie() {
+export function clearSessionCookie(secure: boolean) {
   return {
     name: TOKEN_NAME,
     value: "",
     httpOnly: true,
-    secure: shouldUseSecureCookies(),
+    secure,
     sameSite: "lax" as const,
     path: "/",
     maxAge: 0,

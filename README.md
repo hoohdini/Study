@@ -23,6 +23,8 @@
    - `npm run dev`로 로컬 접속할 때는 `NODE_ENV=production`을 피하세요.
      - `BASE_URL`이 `https://`인데 `http://localhost`로 접속하면 쿠키 Secure 설정 때문에 로그인 세션이 저장되지 않을 수 있습니다.
      - 필요하면 `.env`에 `COOKIE_SECURE=false`를 추가하세요.
+   - `npm run dev`는 호스트에서 실행되므로 `DATABASE_URL`의 호스트가 `postgres`처럼 Docker 내부 DNS면 연결이 실패할 수 있습니다.
+     - 로컬 개발이면 `localhost:5432` 같은 호스트로 맞추거나, Docker로 DB만 띄운 뒤 포트를 노출해 접속하세요.
 3. Prisma 준비
    - `npx prisma generate`
    - `npx prisma migrate dev --name init`

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { resolveCookieSecure } from "@/lib/https";
 
 const encoder = new TextEncoder();
 
@@ -25,7 +26,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   } catch {
     const response = NextResponse.redirect(new URL("/admin/login", request.url));
-    response.cookies.set("study_archive_session", "", { path: "/", maxAge: 0 });
+    response.cookies.set({
+      name: "study_archive_session",
+      value: "",
+      path: "/",
+      maxAge: 0,
+      httpOnly: true,
+      secure: resolveCookieSecure(request),
+      sameSite: "lax",
+    });
     return response;
   }
 }

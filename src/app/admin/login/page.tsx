@@ -20,7 +20,21 @@ export default function AdminLoginPage() {
     });
 
     if (!response.ok) {
-      setError("로그인에 실패했습니다.");
+      let message = "로그인에 실패했습니다.";
+      try {
+        const data = (await response.json()) as { error?: string; code?: string };
+        if (response.status === 401) {
+          message = "이메일 또는 비밀번호가 올바르지 않습니다.";
+        } else if (response.status === 429) {
+          message = "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
+        } else if (response.status === 500 && data.code === "LOGIN_FAILED") {
+          message =
+            "서버 오류로 로그인에 실패했습니다. (대부분 DB 연결 문제) `.env`의 DATABASE_URL이 로컬에서 접근 가능한지 확인해주세요.";
+        }
+      } catch {
+        // ignore JSON parse errors
+      }
+      setError(message);
       return;
     }
 
