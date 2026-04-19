@@ -10,10 +10,18 @@ const bodySchema = z.object({
   password: z.string().min(1),
 });
 
+function wantsHtml(request: NextRequest) {
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("text/html");
+}
+
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for") ?? "local";
   const limit = checkRateLimit(`login:${ip}`, 8, 10 * 60 * 1000);
   if (!limit.allowed) {
+    if (wantsHtml(request)) {
+      return NextResponse.redirect(new URL("/admin/login?error=rate", request.url), { status: 303 });
+    }
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -21,6 +29,9 @@ export async function POST(request: NextRequest) {
     getEnv();
   } catch (error) {
     if (error instanceof ZodError) {
+      if (wantsHtml(request)) {
+        return NextResponse.redirect(new URL("/admin/login?error=env", request.url), { status: 303 });
+      }
       return NextResponse.json(
         {
           error: "Server misconfigured",
@@ -34,23 +45,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (wantsHtml(request)) {
+      return NextResponse.redirect(new URL("/admin/login?error=env", request.url), { status: 303 });
+    }
     return NextResponse.json({ error: "Server misconfigured", code: "ENV_INVALID" }, { status: 500 });
   }
 
   try {
-    const json = await request.json();
-    const parsed = bodySchema.safeParse(json);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const contentType = request.headers.get("content-type") ?? "";
+    let email = "";
+    let password = "";
+
+    if (contentType.includes("application/json")) {
+      const json = await request.json();
+      const parsed = bodySchema.safeParse(json);
+      if (!parsed.success) {
+        if (wantsHtml(request)) {
+          return NextResponse.redirect(new URL("/admin/login?error=invalid", request.url), { status: 303 });
+        }
+        return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      }
+      email = parsed.data.email;
+      password = parsed.data.password;
+    } else {
+      const form = await request.formData();
+      email = String(form.get("email") ?? "");
+      password = String(form.get("password") ?? "");
+      const parsed = bodySchema.safeParse({ email, password });
+      if (!parsed.success) {
+        if (wantsHtml(request)) {
+          return NextResponse.redirect(new URL("/admin/login?error=invalid", request.url), { status: 303 });
+        }
+        return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      }
     }
 
     await ensureAdminSeeded();
-    const admin = await verifyPassword(parsed.data.email, parsed.data.password);
+    const admin = await verifyPassword(email, password);
     if (!admin) {
+      if (wantsHtml(request)) {
+        return NextResponse.redirect(new URL("/admin/login?error=auth", request.url), { status: 303 });
+      }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = await createSession(admin.email);
+    if (wantsHtml(request)) {
+      const response = NextResponse.redirect(new URL("/admin", request.url), { status: 303 });
+      response.cookies.set(sessionCookie(token, resolveCookieSecure(request)));
+      return response;
+    }
+
     const response = NextResponse.json({ ok: true });
     response.cookies.set(sessionCookie(token, resolveCookieSecure(request)));
     return response;
@@ -59,6 +104,9 @@ export async function POST(request: NextRequest) {
       console.error("Login failed:", error);
     }
 
+    if (wantsHtml(request)) {
+      return NextResponse.redirect(new URL("/admin/login?error=server", request.url), { status: 303 });
+    }
     return NextResponse.json(
       { error: "Server error", code: "LOGIN_FAILED" },
       { status: 500 },

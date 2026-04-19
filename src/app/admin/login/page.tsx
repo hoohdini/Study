@@ -1,89 +1,51 @@
-"use client";
+type LoginPageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+function readParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
 
-export default function AdminLoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
+  const params = searchParams ?? {};
+  const error = readParam(params.error);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-
-    let response: Response;
-    try {
-      response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-    } catch {
-      setError(
-        "로그인 요청 자체가 실패했습니다. (네트워크/HTTPS 인증서/차단 확장프로그램 가능)\n" +
-          "개발자도구 Network에서 POST /api/auth/login 이 보이는지 확인해주세요.",
-      );
-      return;
-    }
-
-    if (!response.ok) {
-      let message = "로그인에 실패했습니다.";
-      try {
-        const data = (await response.json()) as {
-          error?: string;
-          code?: string;
-          issues?: { path: string; message: string }[];
-        };
-        if (response.status === 401) {
-          message = "이메일 또는 비밀번호가 올바르지 않습니다.";
-        } else if (response.status === 429) {
-          message = "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
-        } else if (response.status === 500 && data.code === "ENV_INVALID") {
-          const hint =
-            data.issues?.map((issue) => `${issue.path}: ${issue.message}`).join("\n") ?? "";
-          message =
-            "서버 환경변수(.env) 설정이 잘못되었습니다.\n" +
-            "- AUTH_SECRET은 32자 이상\n" +
-            "- ADMIN_PASSWORD는 12자 이상\n" +
-            "- DATABASE_URL은 현재 실행 방식에 맞는 호스트/포트\n\n" +
-            (hint ? `상세:\n${hint}` : "");
-        } else if (response.status === 500 && data.code === "LOGIN_FAILED") {
-          message =
-            "서버 오류로 로그인에 실패했습니다. (대부분 DB 연결 문제) `.env`의 DATABASE_URL이 로컬에서 접근 가능한지 확인해주세요.";
-        }
-      } catch {
-        // ignore JSON parse errors
-      }
-      setError(message);
-      return;
-    }
-
-    router.push("/admin");
-    router.refresh();
-  }
+  const errorMessage =
+    error === "auth"
+      ? "이메일 또는 비밀번호가 올바르지 않습니다."
+      : error === "rate"
+        ? "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+        : error === "env"
+          ? "서버 환경변수(.env) 설정이 잘못되었습니다. (AUTH_SECRET 32자 이상, ADMIN_PASSWORD 12자 이상 등)"
+          : error === "invalid"
+            ? "입력값이 올바르지 않습니다."
+            : error === "server"
+              ? "서버 오류로 로그인에 실패했습니다. (대부분 DB 연결 문제)"
+              : "";
 
   return (
     <main className="section-light min-h-screen py-16">
       <div className="container max-w-lg rounded-2xl bg-white p-8 shadow-[rgba(0,0,0,0.12)_0px_8px_24px]">
         <h1 className="mb-6 text-3xl font-semibold tracking-tight">관리자 로그인</h1>
-        <form className="space-y-4" onSubmit={onSubmit}>
+
+        {errorMessage && <p className="mb-4 whitespace-pre-line text-sm text-red-600">{errorMessage}</p>}
+
+        <form className="space-y-4" method="post" action="/api/auth/login">
           <div>
             <label htmlFor="email">이메일</label>
-            <input id="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+            <input id="email" name="email" type="email" required autoComplete="username" />
           </div>
           <div>
             <label htmlFor="password">비밀번호</label>
             <input
               id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              name="password"
               type="password"
               required
+              autoComplete="current-password"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
           <button className="apple-btn apple-btn-primary" type="submit">
             로그인
           </button>
