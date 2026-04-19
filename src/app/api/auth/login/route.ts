@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createSession, ensureAdminSeeded, sessionCookie, verifyPassword } from "@/lib/auth";
 import { resolveCookieSecure } from "@/lib/https";
+import { getEnv } from "@/lib/env";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -14,6 +15,26 @@ export async function POST(request: NextRequest) {
   const limit = checkRateLimit(`login:${ip}`, 8, 10 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  try {
+    getEnv();
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        {
+          error: "Server misconfigured",
+          code: "ENV_INVALID",
+          issues: error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ error: "Server misconfigured", code: "ENV_INVALID" }, { status: 500 });
   }
 
   try {
